@@ -1,69 +1,82 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package com.dist_igra;
 
-import java.util.*;import java.net.*;import java.io.*;
-public class Connector {
-    ServerSocket listener; Socket [] link;
+import java.io.*;
+import java.net.*;
+import java.util.concurrent.*;
 
-    String getMyAddress() throws IOException {
-        try (DatagramSocket ds = new DatagramSocket()) {
-            ds.connect(InetAddress.getByName(Symbols.nameServer), Symbols.ServerPort);
-            return ds.getLocalAddress().getHostAddress();
-        }
-    }
-    public void Connect(String basename, int myId, int numProc,BufferedReader[] dataIn, PrintWriter[] dataOut) throws Exception {
-        Name myNameclient = new Name();
-        link = new Socket[numProc];
-        int localport = getLocalPort(myId);
-        listener = new ServerSocket(localport);
-        System.out.println("Connector ide connectat");
-        myNameclient.insertName(basename + myId,getMyAddress(), localport);
-        System.out.println("Registriran kao " + getMyAddress() + ":" + localport);
-        /* register in the name server */
-        /* accept connections from all the smaller processes */
-        for (int i = 0; i < myId; i++) {
-            Socket s = listener.accept();
-            System.out.println("Prihvacena veza od " + s.getRemoteSocketAddress());
-            Util.println("slusam");
-            BufferedReader dIn = new BufferedReader(new InputStreamReader(s.getInputStream()));
-            String getline = dIn.readLine();
-            StringTokenizer st = new StringTokenizer(getline);
-            int hisId = Integer.parseInt(st.nextToken());
-            @SuppressWarnings("unused")
-            int destId = Integer.parseInt(st.nextToken());
-            String tag = st.nextToken();
-            if (tag.equals("hello")) {
-                link[hisId] = s;
-                dataIn[hisId] = dIn;
-                dataOut[hisId] = new PrintWriter(s.getOutputStream());
+/**
+ * Connector koji umjesto N-1 izravnih veza otvara JEDNU odlaznu vezu
+ * prema RelayServeru (adresa u Symbols.nameServer, port Symbols.ServerPort).
+ * Linker se ne mijenja: i dalje dobiva dataIn[i] i dataOut[i] po procesu.
+ */
+public class Connector {
+    Socket socket;
+
+    /** "BufferedReader" koji redke ne čita iz mreže nego iz reda (queue). */
+    static class QueueReader extends BufferedReader {
+        static final String EOF = new String("EOF");   // oznaka kraja veze (usporedba s ==)
+        final BlockingQueue<String> q = new LinkedBlockingQueue<>();
+
+        QueueReader() { super(new StringReader("")); }
+
+        void put(String line) { q.add(line); }
+
+        @Override
+        public String readLine() throws IOException {
+            try {
+                String s = q.take();
+                if (s == EOF) { q.add(EOF); return null; }   // veza je pala
+                return s;
+            } catch (InterruptedException e) {
+                throw new IOException(e);
             }
         }
-        /* contact all the bigger processes */
-        for (int i = myId + 1; i < numProc; i++) {
-            PortAddr addr;
-            do {
-                addr = myNameclient.searchName(basename + i);
-                Util.println("jos nema veze");
-                Thread.sleep(1000);
-            } while (addr.getPort() == -1);
-            System.out.println("Spajam se na " + addr.getHostName() + ":" + addr.getPort());
-            link[i] = new Socket(addr.getHostName(), addr.getPort());
-            System.out.println("Spojen na proces " + i);
-            dataOut[i] = new PrintWriter(link[i].getOutputStream());
-            dataIn[i] = new BufferedReader(new InputStreamReader(link[i].getInputStream()));
-            /* send a hello message to P_i */
-            dataOut[i].println(myId +" "+ i +" "+ "hello" + " " + "null");
-            dataOut[i].flush();
-        }
     }
-    int getLocalPort(int id) { return Symbols.ServerPort + 10 + id; }
-    public void closeSockets(){
-        try {
-            listener.close();
-            for (int i=0;i<link.length; i++) link[i].close();
-        } catch (Exception e) {System.err.println(e);}
+
+    public void Connect(String basename, int myId, int numProc,
+                        BufferedReader[] dataIn, PrintWriter[] dataOut) throws Exception {
+        socket = new Socket(Symbols.nameServer, Symbols.ServerPort);
+        final BufferedReader in = new BufferedReader(
+                new InputStreamReader(socket.getInputStream()));
+        final PrintWriter out = new PrintWriter(socket.getOutputStream());
+
+        /* prijava na relay */
+        out.println("hello " + basename + " " + myId);
+        out.flush();
+        String reply = in.readLine();
+        if (reply == null || !reply.equals("ok"))
+            throw new Exception("Relay je odbio vezu: " + reply);
+        Util.println("Spojen na relay " + Symbols.nameServer + ":" + Symbols.ServerPort);
+
+        /* za svakog pošiljatelja jedan red; svi izlazi dijele isti PrintWriter */
+        final QueueReader[] queues = new QueueReader[numProc];
+        for (int i = 0; i < numProc; i++) {
+            queues[i] = new QueueReader();
+            dataIn[i] = queues[i];
+            dataOut[i] = out;
         }
+
+        /* dretva koja čita s mreže i razvrstava poruke po pošiljatelju (prvi broj u retku) */
+        Thread reader = new Thread(() -> {
+            try {
+                String line;
+                while ((line = in.readLine()) != null) {
+                    int src = Integer.parseInt(line.substring(0, line.indexOf(' ')));
+                    if (src >= 0 && src < numProc) queues[src].put(line);
+                }
+            } catch (Exception e) {
+                // veza je pala ili je zatvorena
+            } finally {
+                for (QueueReader qr : queues) qr.put(QueueReader.EOF);
+            }
+        });
+        reader.setDaemon(true);
+        reader.start();
+    }
+
+    public void closeSockets() {
+        try {
+            socket.close();
+        } catch (Exception e) { System.err.println(e); }
+    }
 }
