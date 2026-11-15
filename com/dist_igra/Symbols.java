@@ -20,7 +20,7 @@ public class Symbols {
     public static final int roundTime = 500; // ms
     public static final boolean debugFlag = true;
 
-    public static final String nameServer = "192.168.100.42";
+    public static final String nameServer = "192.168.67.183 ";
 
     @SuppressWarnings("unused")
     private static String resolveServer() {
