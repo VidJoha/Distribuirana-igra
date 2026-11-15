@@ -3,6 +3,7 @@ package com.dist_igra;
 public class LinkerTester {
 public static void main(String[] args) {
     Linker comm = null;
+    @SuppressWarnings("unused")
     Msg m;
     try {
     String baseName = args[0];

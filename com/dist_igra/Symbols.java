@@ -20,8 +20,9 @@ public class Symbols {
     public static final int roundTime = 500; // ms
     public static final boolean debugFlag = true;
 
-    public static final String nameServer = resolveServer();
+    public static final String nameServer = "192.168.100.42";
 
+    @SuppressWarnings("unused")
     private static String resolveServer() {
         // 1. JVM property: java -Dserver=192.168.100.42 ...
         String prop = System.getProperty("server");

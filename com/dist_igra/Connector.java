@@ -7,13 +7,19 @@ package com.dist_igra;
 import java.util.*;import java.net.*;import java.io.*;
 public class Connector {
     ServerSocket listener; Socket [] link;
+
+    String getMyAdress() throws IOException{
+        try(Socket s = new Socket(Symbols.nameServer,Symbols.ServerPort)){
+            return s.getLocalAddress().getHostAddress();
+        }
+    }
     public void Connect(String basename, int myId, int numProc,BufferedReader[] dataIn, PrintWriter[] dataOut) throws Exception {
         Name myNameclient = new Name();
         link = new Socket[numProc];
         int localport = getLocalPort(myId);
         listener = new ServerSocket(localport);
         System.out.println("Connector ide connectat");
-        myNameclient.insertName(basename + myId,(InetAddress.getLocalHost()).getHostName(), localport);
+        myNameclient.insertName(basename + myId,getMyAdress(), localport);
         /* register in the name server */
         /* accept connections from all the smaller processes */
         for (int i = 0; i < myId; i++) {
