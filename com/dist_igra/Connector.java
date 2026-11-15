@@ -20,7 +20,7 @@ public class Connector {
         int localport = getLocalPort(myId);
         listener = new ServerSocket(localport);
         System.out.println("Connector ide connectat");
-        myNameclient.insertName(basename + myId,getMyAdress(), localport);
+        myNameclient.insertName(basename + myId,getMyAddress(), localport);
         /* register in the name server */
         /* accept connections from all the smaller processes */
         for (int i = 0; i < myId; i++) {
