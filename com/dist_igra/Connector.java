@@ -8,9 +8,10 @@ import java.util.*;import java.net.*;import java.io.*;
 public class Connector {
     ServerSocket listener; Socket [] link;
 
-    String getMyAdress() throws IOException{
-        try(Socket s = new Socket(Symbols.nameServer,Symbols.ServerPort)){
-            return s.getLocalAddress().getHostAddress();
+    String getMyAddress() throws IOException {
+        try (DatagramSocket ds = new DatagramSocket()) {
+            ds.connect(InetAddress.getByName(Symbols.nameServer), Symbols.ServerPort);
+            return ds.getLocalAddress().getHostAddress();
         }
     }
     public void Connect(String basename, int myId, int numProc,BufferedReader[] dataIn, PrintWriter[] dataOut) throws Exception {

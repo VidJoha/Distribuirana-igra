@@ -15,6 +15,7 @@ import java.net.*; import java.io.*; import java.util.*;
         BufferedReader din = new BufferedReader(new InputStreamReader(theClient.getInputStream()));
         PrintWriter pout = new PrintWriter(theClient.getOutputStream());
         String getline = din.readLine();
+        if (getline == null) return;
         StringTokenizer st = new StringTokenizer(getline);
         String tag = st.nextToken();
     if (tag.equals("search")) {
